@@ -104,6 +104,33 @@ export function setupDatabase() {
       FOREIGN KEY(anomaly_id) REFERENCES anomalies(id)
     );
 
+    CREATE TABLE IF NOT EXISTS billing (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      resource_id TEXT NOT NULL,
+      service TEXT,
+      cost_per_hour REAL,
+      total_cost REAL,
+      data_transfer_gb REAL DEFAULT 0,
+      storage_gb REAL DEFAULT 0,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(resource_id) REFERENCES resources(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS api_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      resource_id TEXT,
+      region TEXT,
+      status TEXT DEFAULT 'Success',
+      error_code TEXT DEFAULT '',
+      source_ip TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_billing_resource ON billing(resource_id, timestamp);
+    CREATE INDEX IF NOT EXISTS idx_api_logs_user ON api_logs(user_id, timestamp);
+    CREATE INDEX IF NOT EXISTS idx_api_logs_action ON api_logs(action, status);
     CREATE INDEX IF NOT EXISTS idx_metrics_resource ON metrics(resource_id, timestamp);
     CREATE INDEX IF NOT EXISTS idx_features_resource ON features(resource_id, timestamp);
     CREATE INDEX IF NOT EXISTS idx_anomalies_resource ON anomalies(resource_id, timestamp);

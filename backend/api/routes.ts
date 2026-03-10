@@ -168,4 +168,74 @@ router.get("/cloud-accounts", (_req, res) => {
   res.json(db.prepare("SELECT * FROM cloud_accounts").all());
 });
 
+// === Billing Timeline for a resource ===
+router.get("/billing/:resourceId", (req, res) => {
+  const billing = db.prepare(
+    "SELECT * FROM billing WHERE resource_id = ? ORDER BY timestamp DESC LIMIT 200"
+  ).all(req.params.resourceId);
+  res.json(billing);
+});
+
+// === Billing Summary by provider/service ===
+router.get("/billing-summary", (_req, res) => {
+  const byProvider = db.prepare(`
+    SELECT r.provider,
+      COUNT(DISTINCT b.resource_id) as resource_count,
+      COALESCE(SUM(b.cost_per_hour), 0) as total_cost,
+      COALESCE(SUM(b.data_transfer_gb), 0) as total_transfer_gb
+    FROM billing b
+    JOIN resources r ON b.resource_id = r.id
+    GROUP BY r.provider
+  `).all();
+
+  const byService = db.prepare(`
+    SELECT service, COUNT(*) as rows, COALESCE(SUM(cost_per_hour), 0) as total_cost
+    FROM billing GROUP BY service ORDER BY total_cost DESC
+  `).all();
+
+  const topSpenders = db.prepare(`
+    SELECT b.resource_id, r.name as resource_name, r.provider, r.instance_type,
+      COALESCE(SUM(b.cost_per_hour), 0) as total_spend,
+      MAX(b.total_cost) as cumulative_cost
+    FROM billing b
+    JOIN resources r ON b.resource_id = r.id
+    GROUP BY b.resource_id
+    ORDER BY total_spend DESC LIMIT 15
+  `).all();
+
+  const totalSpend = db.prepare("SELECT COALESCE(SUM(cost_per_hour), 0) as t FROM billing").get() as any;
+
+  res.json({ byProvider, byService, topSpenders, totalSpend: totalSpend.t });
+});
+
+// === API Activity Logs ===
+router.get("/api-logs", (_req, res) => {
+  const logs = db.prepare(`
+    SELECT * FROM api_logs ORDER BY timestamp DESC LIMIT 200
+  `).all();
+  res.json(logs);
+});
+
+// === Suspicious API Activity ===
+router.get("/api-logs/suspicious", (_req, res) => {
+  const suspicious = db.prepare(`
+    SELECT * FROM api_logs
+    WHERE status = 'Failed'
+       OR action IN ('create_access_key', 'assume_role')
+       OR region IN ('ap-east-1', 'af-south-1')
+       OR source_ip LIKE '185.%'
+    ORDER BY timestamp DESC LIMIT 100
+  `).all();
+
+  const userBreakdown = db.prepare(`
+    SELECT user_id, COUNT(*) as total_actions,
+      SUM(CASE WHEN status = 'Failed' THEN 1 ELSE 0 END) as failed_count,
+      SUM(CASE WHEN action = 'launch_instance' THEN 1 ELSE 0 END) as launches
+    FROM api_logs GROUP BY user_id ORDER BY failed_count DESC
+  `).all();
+
+  res.json({ suspicious, userBreakdown });
+});
+
 export default router;
+

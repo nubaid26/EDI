@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { setupDatabase } from "./backend/db.js";
 import { startSimulator } from "./backend/collectors/simulator.js";
+import { isV2DataAvailable, loadV2Data } from "./backend/pipeline/v2_loader.js";
 import { runDetection } from "./backend/models/detector.js";
 import { generateRecommendations } from "./backend/optimization_agent/optimizer.js";
 import { runPreventiveGuard } from "./backend/models/preventive_guard.js";
@@ -17,10 +18,16 @@ async function startServer() {
   setupDatabase();
   console.log("[CloudGuard] Database initialized");
 
-  // Start Background Tasks
-  startSimulator();
+  // Load V2 data if available, otherwise fall back to TS simulator
+  if (isV2DataAvailable()) {
+    console.log("[CloudGuard] V2 Synthetic Engine detected — loading CSV data...");
+    loadV2Data();
+  } else {
+    console.log("[CloudGuard] No V2 data found — starting real-time simulator...");
+    startSimulator();
+  }
 
-  // Detection pipeline: run after metrics accumulate
+  // Detection pipeline: run after data loads
   setTimeout(runDetection, 5000);
   setInterval(runDetection, 60000);
 

@@ -1,12 +1,14 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, AlertTriangle, Server, Zap, ShieldAlert, Settings, Shield } from "lucide-react";
+import { LayoutDashboard, AlertTriangle, Server, Zap, ShieldAlert, DollarSign, Terminal, Settings, Shield } from "lucide-react";
 
 const navItems = [
   { name: "Dashboard", path: "/", icon: LayoutDashboard },
   { name: "Alerts", path: "/alerts", icon: AlertTriangle },
   { name: "Resource Explorer", path: "/resources", icon: Server },
   { name: "Cost Optimization", path: "/optimization", icon: Zap },
+  { name: "Billing Explorer", path: "/billing", icon: DollarSign },
   { name: "Security Threats", path: "/security", icon: ShieldAlert },
+  { name: "API Activity", path: "/api-activity", icon: Terminal },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 
@@ -55,7 +57,7 @@ export function Sidebar() {
         </div>
         <div className="flex items-center gap-2 mt-1.5">
           <div className="w-2 h-2 rounded-full bg-blue-400 pulse-glow" />
-          <span className="text-xs font-medium text-blue-400">ML Engine Active</span>
+          <span className="text-xs font-medium text-blue-400">V2 Engine Active</span>
         </div>
       </div>
     </div>

@@ -5,6 +5,8 @@ import { Alerts } from "./pages/Alerts";
 import { Resources } from "./pages/Resources";
 import { Optimization } from "./pages/Optimization";
 import { Security } from "./pages/Security";
+import { BillingExplorer } from "./pages/BillingExplorer";
+import { APIActivity } from "./pages/APIActivity";
 import { Settings } from "./pages/Settings";
 
 export default function App() {
@@ -19,6 +21,8 @@ export default function App() {
             <Route path="/resources" element={<Resources />} />
             <Route path="/optimization" element={<Optimization />} />
             <Route path="/security" element={<Security />} />
+            <Route path="/billing" element={<BillingExplorer />} />
+            <Route path="/api-activity" element={<APIActivity />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
