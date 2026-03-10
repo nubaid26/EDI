@@ -1,0 +1,33 @@
+app:
+  name: CloudGuard AI
+  version: 1.0.0
+  environment: production
+
+database:
+  type: postgres
+  host: localhost
+  port: 5432
+  name: cloudguard
+  user: admin
+
+models:
+  cost_anomaly:
+    algorithm: prophet
+    threshold: 0.85
+  resource_behavior:
+    algorithm: isolation_forest
+    contamination: 0.05
+  resource_abuse:
+    algorithm: xgboost
+    confidence_threshold: 0.90
+  infrastructure_behavior:
+    algorithm: dbscan
+    eps: 0.5
+    min_samples: 5
+
+fusion_engine:
+  weights:
+    cost: 0.4
+    resource: 0.3
+    behavior: 0.2
+    abuse: 0.1
