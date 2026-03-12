@@ -1,167 +1,143 @@
-import { useState, useEffect } from "react";
-import { Key, Bell, Shield, Database, Cloud } from "lucide-react";
-
-type SettingsTab = "integrations" | "notifications" | "security" | "data";
+import { useState } from "react";
+import { useCollector } from "../context/CollectorContext";
+import { Settings as SettingsIcon, Save, TestTube } from "lucide-react";
 
 export function Settings() {
-  const [tab, setTab] = useState<SettingsTab>("integrations");
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [notifications, setNotifications] = useState({ email: true, slack: false, dashboard: true });
-  const [retention, setRetention] = useState("90");
+  const { mode } = useCollector();
+  const [cpuThreshold, setCpuThreshold] = useState(80);
+  const [wasteThreshold, setWasteThreshold] = useState(100);
+  const [gpuIdleHours, setGpuIdleHours] = useState(4);
+  const [sensitivity, setSensitivity] = useState<"low" | "medium" | "high">("medium");
+  const [currency, setCurrency] = useState("USD");
+  const [refreshInterval, setRefreshInterval] = useState(60);
+  const [autoRemediation, setAutoRemediation] = useState(false);
+  const [requireApproval, setRequireApproval] = useState(true);
+  const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/cloud-accounts").then(r => r.json()).then(setAccounts);
-  }, []);
-
-  const tabs = [
-    { id: "integrations" as const, label: "Cloud Integrations", icon: Key },
-    { id: "notifications" as const, label: "Notifications", icon: Bell },
-    { id: "security" as const, label: "Security Policies", icon: Shield },
-    { id: "data" as const, label: "Data Retention", icon: Database },
-  ];
-
-  const providerStyle = (p: string) => {
-    if (p === "AWS") return { bg: "rgba(245,158,11,0.12)", color: "#fbbf24", label: "AWS" };
-    if (p === "Azure") return { bg: "rgba(59,130,246,0.12)", color: "#60a5fa", label: "AZ" };
-    return { bg: "rgba(239,68,68,0.12)", color: "#f87171", label: "GCP" };
-  };
+  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold gradient-text">Platform Settings</h1>
-        <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>Configure cloud integrations, notifications, and security</p>
+    <div className="p-6 lg:p-8 space-y-6 max-w-3xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold gradient-text">Settings</h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>Configure detection thresholds, notifications, and display preferences</p>
+        </div>
+        <button onClick={save} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white cursor-pointer"
+          style={{ background: saved ? "#22c55e" : "var(--gradient-primary)" }}>
+          <Save className="w-4 h-4" /> {saved ? "Saved!" : "Save Changes"}
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Sidebar Nav */}
-        <div className="space-y-1">
-          {tabs.map(t => {
-            const Icon = t.icon;
-            return (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all"
-                style={{
-                  background: tab === t.id ? "rgba(99,102,241,0.12)" : "transparent",
-                  color: tab === t.id ? "#a5b4fc" : "var(--text-muted)",
-                }}>
-                <Icon className="w-4 h-4" />{t.label}
-              </button>
-            );
-          })}
+      {/* Data Source Config */}
+      <div className="glass-card p-5 space-y-4">
+        <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
+          <SettingsIcon className="w-4 h-4" /> Data Source Configuration
+        </h3>
+        <div className="grid grid-cols-3 gap-3">
+          {(["synthetic", "csv", "live"] as const).map(m => (
+            <div key={m} className="p-3 rounded-xl text-center" style={{
+              background: mode === m ? "rgba(99,102,241,0.12)" : "var(--bg-glass)",
+              border: mode === m ? "1px solid rgba(99,102,241,0.3)" : "1px solid var(--border-glass)",
+            }}>
+              <p className="text-xs font-bold uppercase" style={{ color: mode === m ? "#a5b4fc" : "var(--text-muted)" }}>{m}</p>
+              {mode === m && <span className="text-[10px]" style={{ color: "#22c55e" }}>● Active</span>}
+            </div>
+          ))}
         </div>
+      </div>
 
-        {/* Content */}
-        <div className="lg:col-span-3 space-y-4">
-          {tab === "integrations" && (
-            <>
-              <div className="glass-card p-5">
-                <h2 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: "var(--text-muted)" }}>Cloud Provider Integrations</h2>
-                <div className="space-y-3">
-                  {accounts.map(acc => {
-                    const ps = providerStyle(acc.provider);
-                    return (
-                      <div key={acc.id} className="flex items-center justify-between p-4 rounded-xl" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-glass)" }}>
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold" style={{ background: ps.bg, color: ps.color }}>
-                            {ps.label}
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{acc.provider === "AWS" ? "Amazon Web Services" : acc.provider === "Azure" ? "Microsoft Azure" : "Google Cloud Platform"}</h4>
-                            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Account: {acc.account_id} · {acc.alias}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="badge badge-low">Connected</span>
-                          <button className="text-xs font-medium px-3 py-1.5 rounded-lg" style={{ background: "var(--bg-glass)", color: "var(--text-secondary)", border: "1px solid var(--border-glass)" }}>Configure</button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="glass-card p-5">
-                <h2 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: "var(--text-muted)" }}>Gemini AI Configuration</h2>
-                <div className="flex gap-3">
-                  <input type="password" value="••••••••••••••••••••••••" readOnly
-                    className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"
-                    style={{ background: "var(--bg-glass)", border: "1px solid var(--border-glass)", color: "var(--text-muted)" }} />
-                  <button className="btn-primary">Update</button>
-                </div>
-                <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Required for Optimization Agent and anomaly explanation features.</p>
-              </div>
-            </>
-          )}
-
-          {tab === "notifications" && (
-            <div className="glass-card p-5">
-              <h2 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: "var(--text-muted)" }}>Notification Channels</h2>
-              <div className="space-y-4">
-                {[
-                  { key: "dashboard" as const, label: "Dashboard Notifications", desc: "Show alerts in the CloudGuard dashboard" },
-                  { key: "email" as const, label: "Email Alerts", desc: "Send critical alerts via email" },
-                  { key: "slack" as const, label: "Slack Integration", desc: "Post alerts to a Slack channel" },
-                ].map(ch => (
-                  <div key={ch.key} className="flex items-center justify-between p-4 rounded-xl" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-glass)" }}>
-                    <div>
-                      <h4 className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{ch.label}</h4>
-                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{ch.desc}</p>
-                    </div>
-                    <button onClick={() => setNotifications(prev => ({ ...prev, [ch.key]: !prev[ch.key] }))}
-                      className="w-11 h-6 rounded-full transition-colors relative"
-                      style={{ background: notifications[ch.key] ? "#6366f1" : "rgba(100,116,139,0.3)" }}>
-                      <div className="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-all"
-                        style={{ left: notifications[ch.key] ? 22 : 2 }} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+      {/* Alert Thresholds */}
+      <div className="glass-card p-5 space-y-4">
+        <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Alert Thresholds</h3>
+        <div className="space-y-3">
+          <div>
+            <div className="flex justify-between mb-1"><label className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>CPU Alert Threshold</label>
+              <span className="text-xs font-mono" style={{ color: "#a5b4fc" }}>{cpuThreshold}%</span></div>
+            <input type="range" min={0} max={100} value={cpuThreshold} onChange={e => setCpuThreshold(+e.target.value)}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer" style={{ background: "var(--bg-glass)" }} />
+          </div>
+          <div>
+            <div className="flex justify-between mb-1"><label className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Waste Alert Threshold ($/mo)</label>
+              <span className="text-xs font-mono" style={{ color: "#a5b4fc" }}>${wasteThreshold}</span></div>
+            <input type="range" min={10} max={5000} step={10} value={wasteThreshold} onChange={e => setWasteThreshold(+e.target.value)}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer" style={{ background: "var(--bg-glass)" }} />
+          </div>
+          <div>
+            <div className="flex justify-between mb-1"><label className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>GPU Idle Threshold (hours)</label>
+              <span className="text-xs font-mono" style={{ color: "#a5b4fc" }}>{gpuIdleHours}h</span></div>
+            <input type="range" min={1} max={24} value={gpuIdleHours} onChange={e => setGpuIdleHours(+e.target.value)}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer" style={{ background: "var(--bg-glass)" }} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold block mb-2" style={{ color: "var(--text-muted)" }}>Cryptomining Detection Sensitivity</label>
+            <div className="flex gap-2">
+              {(["low", "medium", "high"] as const).map(s => (
+                <button key={s} onClick={() => setSensitivity(s)}
+                  className="flex-1 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all"
+                  style={{
+                    background: sensitivity === s ? "rgba(99,102,241,0.15)" : "var(--bg-glass)",
+                    color: sensitivity === s ? "#a5b4fc" : "var(--text-muted)",
+                    border: sensitivity === s ? "1px solid rgba(99,102,241,0.3)" : "1px solid var(--border-glass)",
+                  }}>{s.charAt(0).toUpperCase() + s.slice(1)}</button>
+              ))}
             </div>
-          )}
+          </div>
+        </div>
+      </div>
 
-          {tab === "security" && (
-            <div className="glass-card p-5">
-              <h2 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: "var(--text-muted)" }}>Security Policies</h2>
-              <div className="space-y-3 text-sm">
-                <div className="p-4 rounded-xl" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-glass)" }}>
-                  <h4 className="font-medium" style={{ color: "var(--text-primary)" }}>Authentication</h4>
-                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>OAuth 2.0 with cloud provider SSO support</p>
-                </div>
-                <div className="p-4 rounded-xl" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-glass)" }}>
-                  <h4 className="font-medium" style={{ color: "var(--text-primary)" }}>API Key Protection</h4>
-                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>All API keys encrypted at rest. Rotated every 90 days.</p>
-                </div>
-                <div className="p-4 rounded-xl" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-glass)" }}>
-                  <h4 className="font-medium" style={{ color: "var(--text-primary)" }}>Role-Based Access Control</h4>
-                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Admin, Editor, Viewer roles with granular permissions</p>
-                </div>
-              </div>
+      {/* Auto-Remediation */}
+      <div className="glass-card p-5 space-y-3">
+        <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Auto-Remediation</h3>
+        <div className="flex items-center justify-between">
+          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>Enable auto-remediation</span>
+          <button onClick={() => setAutoRemediation(!autoRemediation)}
+            className="w-10 h-5 rounded-full relative cursor-pointer transition-all"
+            style={{ background: autoRemediation ? "#6366f1" : "var(--bg-glass)" }}>
+            <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+              style={{ left: autoRemediation ? 22 : 2 }} />
+          </button>
+        </div>
+        {autoRemediation && (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>Require approval before action</span>
+              <button onClick={() => setRequireApproval(!requireApproval)}
+                className="w-10 h-5 rounded-full relative cursor-pointer transition-all"
+                style={{ background: requireApproval ? "#6366f1" : "var(--bg-glass)" }}>
+                <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+                  style={{ left: requireApproval ? 22 : 2 }} />
+              </button>
             </div>
-          )}
+            <p className="text-[11px] flex items-center gap-1" style={{ color: "#fbbf24" }}>
+              ⚠ Auto-remediation will stop/resize resources based on AI recommendations
+            </p>
+          </>
+        )}
+      </div>
 
-          {tab === "data" && (
-            <div className="glass-card p-5">
-              <h2 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: "var(--text-muted)" }}>Data Retention Policy</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Metrics retention (days)</label>
-                  <select value={retention} onChange={e => setRetention(e.target.value)}
-                    className="mt-1 w-full px-4 py-2.5 rounded-xl text-sm outline-none"
-                    style={{ background: "var(--bg-glass)", border: "1px solid var(--border-glass)", color: "var(--text-primary)" }}>
-                    <option value="30">30 days</option>
-                    <option value="90">90 days</option>
-                    <option value="180">180 days</option>
-                    <option value="365">1 year</option>
-                  </select>
-                </div>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Anomaly and alert data is retained indefinitely. Metrics data older than the retention period will be automatically purged.
-                </p>
-                <button className="btn-primary">Save Changes</button>
-              </div>
-            </div>
-          )}
+      {/* Display Preferences */}
+      <div className="glass-card p-5 space-y-3">
+        <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Display Preferences</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: "var(--text-muted)" }}>Currency</label>
+            <select value={currency} onChange={e => setCurrency(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-sm outline-none cursor-pointer"
+              style={{ background: "var(--bg-glass)", border: "1px solid var(--border-glass)", color: "var(--text-primary)" }}>
+              {["USD", "EUR", "GBP", "INR"].map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: "var(--text-muted)" }}>Refresh Interval</label>
+            <select value={refreshInterval} onChange={e => setRefreshInterval(+e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-sm outline-none cursor-pointer"
+              style={{ background: "var(--bg-glass)", border: "1px solid var(--border-glass)", color: "var(--text-primary)" }}>
+              <option value={30}>30 seconds</option>
+              <option value={60}>60 seconds</option>
+              <option value={300}>5 minutes</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>

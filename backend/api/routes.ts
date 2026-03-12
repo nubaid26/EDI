@@ -237,5 +237,65 @@ router.get("/api-logs/suspicious", (_req, res) => {
   res.json({ suspicious, userBreakdown });
 });
 
+// === Dashboard support: CPU metrics sample ===
+router.get("/metrics/sample", (_req, res) => {
+  const metrics = db.prepare(
+    "SELECT * FROM metrics ORDER BY timestamp DESC LIMIT 50"
+  ).all();
+  res.json(metrics.reverse());
+});
+
+// === Dashboard support: Cost timeline ===
+router.get("/cost-timeline", (_req, res) => {
+  const costs = db.prepare(`
+    SELECT timestamp, COALESCE(SUM(cost_per_hour), 0) as total_cost
+    FROM billing GROUP BY timestamp ORDER BY timestamp DESC LIMIT 50
+  `).all();
+  res.json(costs.reverse());
+});
+
+// === Dashboard support: Risk scores table ===
+router.get("/risk-scores", (_req, res) => {
+  const resources = db.prepare(`
+    SELECT r.id as resource_id, r.provider, r.name, r.instance_type,
+      r.cost_per_hour, r.status
+    FROM resources r ORDER BY r.cost_per_hour DESC LIMIT 15
+  `).all() as any[];
+
+  // Compute risk scores from latest metrics
+  const results = resources.map(r => {
+    const latest = db.prepare(
+      "SELECT AVG(cpu_utilization) as cpu, AVG(network_out) as net FROM metrics WHERE resource_id = ?"
+    ).get(r.resource_id) as any;
+
+    const cpu_avg = latest?.cpu || 0;
+    const net_avg = latest?.net || 0;
+    const anomalyType = cpu_avg > 90 ? "cryptomining" : cpu_avg < 5 ? "idle_gpu" : r.status === "available" ? "orphaned_resource" : "normal";
+    const weights: Record<string, number> = { cryptomining: 1, idle_gpu: 0.6, orphaned_resource: 0.35, normal: 0 };
+    const risk_score = Math.round((0.4 * (cpu_avg / 100) + 0.3 * Math.min(net_avg / 100, 1) + 0.2 * (weights[anomalyType] || 0) + 0.1 * Math.min(r.cost_per_hour / 5, 1)) * 100);
+    const risk_level = risk_score >= 60 ? "HIGH" : risk_score >= 30 ? "MEDIUM" : "LOW";
+
+    return { ...r, anomaly_type: anomalyType, risk_score, risk_level };
+  });
+
+  results.sort((a, b) => b.risk_score - a.risk_score);
+  res.json(results);
+});
+
+// === Billing timeline for 30-day chart ===
+router.get("/billing-timeline", (_req, res) => {
+  const timeline = db.prepare(`
+    SELECT substr(timestamp, 1, 10) as date,
+      SUM(cost_per_hour) as daily_cost,
+      MAX(total_cost) as cumulative_cost
+    FROM billing
+    GROUP BY substr(timestamp, 1, 10)
+    ORDER BY date ASC
+    LIMIT 30
+  `).all();
+  res.json(timeline);
+});
+
 export default router;
+
 
