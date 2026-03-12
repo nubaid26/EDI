@@ -1,0 +1,212 @@
+/* ============================================
+   MINIMALIST MONOCHROME — Design Token System
+   ============================================ */
+
+/* ============================================================
+   BODY RESET — override the dark dashboard theme on marketing
+   ============================================================ */
+body:has(.marketing) {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* --- Link color reset — prevent browser-default blue on all marketing links --- */
+.marketing a {
+  color: inherit;
+  text-decoration: none;
+}
+.marketing a:hover {
+  text-decoration: none;
+}
+
+/* --- Scoped Tokens (marketing pages only) --- */
+.marketing {
+  --background: #FFFFFF;
+  --foreground: #000000;
+  --muted: #F5F5F5;
+  --muted-foreground: #525252;
+  --accent: #000000;
+  --accent-foreground: #FFFFFF;
+  --border: #000000;
+  --border-light: #E5E5E5;
+  --card: #FFFFFF;
+  --card-foreground: #000000;
+  --ring: #000000;
+
+  /* Typography families */
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-body: "Source Serif 4", Georgia, serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- Global Noise Texture Overlay --- */
+.marketing::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.02;
+}
+
+/* --- Typography Scale --- */
+.marketing .font-display { font-family: var(--font-display); }
+.marketing .font-body    { font-family: var(--font-body); }
+.marketing .font-mono    { font-family: var(--font-mono); }
+
+.marketing .text-display-9xl { font-size: 10rem;   line-height: 1; }
+.marketing .text-display-8xl { font-size: 8rem;    line-height: 1; }
+.marketing .text-display-7xl { font-size: 6rem;    line-height: 1; }
+.marketing .text-display-6xl { font-size: 4.5rem;  line-height: 1; }
+.marketing .text-display-5xl { font-size: 3.5rem;  line-height: 1.05; }
+.marketing .text-display-4xl { font-size: 2.5rem;  line-height: 1.1; }
+.marketing .text-display-3xl { font-size: 2rem;    line-height: 1.15; }
+.marketing .text-display-2xl { font-size: 1.5rem;  line-height: 1.25; }
+
+/* --- Border Utilities --- */
+.marketing .border-hairline { border: 1px solid var(--border-light); }
+.marketing .border-thin     { border: 1px solid var(--foreground); }
+.marketing .border-medium   { border: 2px solid var(--foreground); }
+.marketing .border-thick    { border: 4px solid var(--foreground); }
+.marketing .border-ultra    { border: 8px solid var(--foreground); }
+
+.marketing .rule-thick  { height: 4px; background: var(--foreground); width: 100%; }
+.marketing .rule-ultra  { height: 8px; background: var(--foreground); width: 100%; }
+
+/* --- Zero Radius --- */
+.marketing,
+.marketing * {
+  border-radius: 0 !important;
+}
+
+/* --- Section Textures (applied via data-texture attribute) --- */
+
+/* Horizontal lines */
+.marketing [data-texture="horizontal-lines"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 1px,
+    #000 1px,
+    #000 2px
+  );
+  background-size: 100% 4px;
+  opacity: 0.015;
+}
+
+/* Grid pattern */
+.marketing [data-texture="grid"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(#00000008 1px, transparent 1px),
+    linear-gradient(90deg, #00000008 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.015;
+}
+
+/* Diagonal lines */
+.marketing [data-texture="diagonal"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 40px,
+    #00000008 40px,
+    #00000008 42px
+  );
+  opacity: 0.01;
+}
+
+/* Inverted: vertical lines (for dark bg sections) */
+.marketing [data-texture="vertical-lines-inverted"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 1px,
+    #fff 1px,
+    #fff 2px
+  );
+  background-size: 4px 100%;
+  opacity: 0.03;
+}
+
+/* Inverted: radial (for dark bg CTA) */
+.marketing [data-texture="radial-inverted"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(
+    circle at top center,
+    #ffffff,
+    transparent 70%
+  );
+  opacity: 0.05;
+}
+
+/* --- Inverted Section --- */
+.marketing .section-inverted {
+  background: var(--foreground);
+  color: var(--background);
+}
+
+/* --- Skip Link (Accessibility) --- */
+.marketing .skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 10000;
+  padding: 12px 24px;
+  background: var(--foreground);
+  color: var(--background);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 2px solid var(--foreground);
+}
+.marketing .skip-link:focus {
+  top: 16px;
+}
+
+/* --- Focus Visible (Accessibility) --- */
+.marketing button:focus-visible,
+.marketing a:focus-visible,
+.marketing [tabindex]:focus-visible {
+  outline: 3px solid var(--foreground);
+  outline-offset: 3px;
+}
+.marketing .section-inverted button:focus-visible,
+.marketing .section-inverted a:focus-visible {
+  outline-color: var(--background);
+}
+
+/* --- Scrollbar (marketing) --- */
+.marketing::-webkit-scrollbar { width: 6px; }
+.marketing::-webkit-scrollbar-track { background: var(--background); }
+.marketing::-webkit-scrollbar-thumb { background: var(--border-light); }
+.marketing::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+/* Section spacing is controlled directly in components via Tailwind `py-*` classes. */
+

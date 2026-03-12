@@ -2,14 +2,14 @@ import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, AlertTriangle, Server, Zap, ShieldAlert, DollarSign, Terminal, Settings, Shield } from "lucide-react";
 
 const navItems = [
-  { name: "Dashboard", path: "/", icon: LayoutDashboard },
-  { name: "Alerts", path: "/alerts", icon: AlertTriangle },
-  { name: "Resource Explorer", path: "/resources", icon: Server },
-  { name: "Cost Optimization", path: "/optimization", icon: Zap },
-  { name: "Billing Explorer", path: "/billing", icon: DollarSign },
-  { name: "Security Threats", path: "/security", icon: ShieldAlert },
-  { name: "API Activity", path: "/api-activity", icon: Terminal },
-  { name: "Settings", path: "/settings", icon: Settings },
+  { name: "Dashboard", path: "/app", icon: LayoutDashboard },
+  { name: "Alerts", path: "/app/alerts", icon: AlertTriangle },
+  { name: "Resource Explorer", path: "/app/resources", icon: Server },
+  { name: "Cost Optimization", path: "/app/optimization", icon: Zap },
+  { name: "Billing Explorer", path: "/app/billing", icon: DollarSign },
+  { name: "Security Threats", path: "/app/security", icon: ShieldAlert },
+  { name: "API Activity", path: "/app/api-activity", icon: Terminal },
+  { name: "Settings", path: "/app/settings", icon: Settings },
 ];
 
 export function Sidebar() {
@@ -29,7 +29,7 @@ export function Sidebar() {
       <nav className="flex-1 px-3 space-y-1 mt-2">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path;
+          const isActive = location.pathname === item.path || (item.path === "/app" && location.pathname === "/app/");
           return (
             <Link
               key={item.name}
