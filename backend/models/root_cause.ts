@@ -36,7 +36,6 @@ export function analyzeRootCause(resourceId: string, anomalyType: string, score:
             if (avgCpu < 30) evidence.push(`Low CPU utilization (${avgCpu.toFixed(1)}%) suggests over-provisioning`);
             break;
         case "Idle Resource":
-            const idleHours = recentMetrics.length * (10 / 3600);
             issue = `Resource idle — CPU at ${avgCpu.toFixed(1)}% while incurring $${avgCost.toFixed(2)}/hr`;
             evidence.push(`CPU utilization: ${avgCpu.toFixed(1)}%`);
             evidence.push(`Memory usage: ${avg(recentMetrics.map(m => m.memory_usage)).toFixed(1)}%`);

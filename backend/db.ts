@@ -162,23 +162,23 @@ function seedData() {
 
   const resources = [
     // AWS Resources
-    ["i-0abcd1234efgh5678", "AWS", "EC2", "ml-training-node", "us-east-1", "running", "g4dn.xlarge", "ML Team", 2.80],
-    ["i-0987654321abcdef0", "AWS", "EC2", "web-server-prod", "us-west-2", "running", "t3.large", "Platform Team", 0.42],
-    ["i-0deadbeef12345678", "AWS", "EC2", "forgotten-dev-box", "eu-west-1", "running", "m5.xlarge", "Dev Team", 1.20],
-    ["i-0aaa111122223333", "AWS", "EC2", "batch-processor", "us-east-1", "running", "c5.2xlarge", "Data Team", 1.70],
-    ["vol-0abc123def456789", "AWS", "EBS", "orphaned-volume", "us-east-1", "available", "gp3", "Unknown", 0.08],
-    ["elb-prod-legacy-001", "AWS", "ELB", "legacy-load-balancer", "us-west-2", "active", "classic", "Platform Team", 0.25],
-    ["snap-0aabbcc1122334455", "AWS", "EBS Snapshot", "outdated-snapshot", "us-east-1", "completed", "snapshot", "Ops Team", 0.05],
+    ["i-0abcd1234efgh5678", "aws", "EC2", "ml-training-node", "us-east-1", "running", "g4dn.xlarge", "ML Team", 2.80],
+    ["i-0987654321abcdef0", "aws", "EC2", "web-server-prod", "us-west-2", "running", "t3.large", "Platform Team", 0.42],
+    ["i-0deadbeef12345678", "aws", "EC2", "forgotten-dev-box", "eu-west-1", "running", "m5.xlarge", "Dev Team", 1.20],
+    ["i-0aaa111122223333", "aws", "EC2", "batch-processor", "us-east-1", "running", "c5.2xlarge", "Data Team", 1.70],
+    ["vol-0abc123def456789", "aws", "EBS", "orphaned-volume", "us-east-1", "available", "gp3", "Unknown", 0.08],
+    ["elb-prod-legacy-001", "aws", "ELB", "legacy-load-balancer", "us-west-2", "active", "classic", "Platform Team", 0.25],
+    ["snap-0aabbcc1122334455", "aws", "EBS Snapshot", "outdated-snapshot", "us-east-1", "completed", "snapshot", "Ops Team", 0.05],
     // Azure Resources
-    ["aks-agentpool-12345678-vmss000000", "Azure", "AKS", "k8s-node-1", "eastus", "running", "Standard_D4s_v3", "K8s Team", 1.92],
-    ["aks-agentpool-12345678-vmss000001", "Azure", "AKS", "k8s-node-2", "eastus", "running", "Standard_D4s_v3", "K8s Team", 1.92],
-    ["vm-analytics-prod-01", "Azure", "VM", "analytics-server", "westeurope", "running", "Standard_E4s_v3", "Analytics Team", 1.52],
-    ["disk-unattached-001", "Azure", "Managed Disk", "unattached-disk", "eastus", "unattached", "Premium_SSD", "Unknown", 0.15],
+    ["aks-agentpool-12345678-vmss000000", "azure", "AKS", "k8s-node-1", "eastus", "running", "Standard_D4s_v3", "K8s Team", 1.92],
+    ["aks-agentpool-12345678-vmss000001", "azure", "AKS", "k8s-node-2", "eastus", "running", "Standard_D4s_v3", "K8s Team", 1.92],
+    ["vm-analytics-prod-01", "azure", "VM", "analytics-server", "westeurope", "running", "Standard_E4s_v3", "Analytics Team", 1.52],
+    ["disk-unattached-001", "azure", "Managed Disk", "unattached-disk", "eastus", "unattached", "Premium_SSD", "Unknown", 0.15],
     // GCP Resources
-    ["gce-instance-abc1", "GCP", "Compute Engine", "data-pipeline-worker", "us-central1", "running", "n1-standard-4", "Data Team", 1.90],
-    ["gce-instance-gpu1", "GCP", "Compute Engine", "gpu-inference-node", "us-west1", "running", "n1-standard-8-t4", "AI Team", 3.50],
-    ["gce-instance-idle1", "GCP", "Compute Engine", "idle-staging-vm", "europe-west1", "running", "e2-standard-2", "Dev Team", 0.67],
-    ["gcs-bucket-logs", "GCP", "Cloud Storage", "old-log-bucket", "us-central1", "active", "standard", "Ops Team", 0.02],
+    ["gce-instance-abc1", "gcp", "Compute Engine", "data-pipeline-worker", "us-central1", "running", "n1-standard-4", "Data Team", 1.90],
+    ["gce-instance-gpu1", "gcp", "Compute Engine", "gpu-inference-node", "us-west1", "running", "n1-standard-8-t4", "AI Team", 3.50],
+    ["gce-instance-idle1", "gcp", "Compute Engine", "idle-staging-vm", "europe-west1", "running", "e2-standard-2", "Dev Team", 0.67],
+    ["gcs-bucket-logs", "gcp", "Cloud Storage", "old-log-bucket", "us-central1", "active", "standard", "Ops Team", 0.02],
   ];
 
   db.transaction(() => {

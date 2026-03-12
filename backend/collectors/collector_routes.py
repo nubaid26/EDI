@@ -3,19 +3,33 @@ CloudGuard AI — Universal Collector API Routes
 Provides all FastAPI endpoints for the Universal Collector.
 """
 
-import os, tempfile, logging
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query
-from pydantic import BaseModel
-from typing import Optional
+import logging
+import os
+import tempfile
+from typing import Any, Dict, List, Optional
 
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from collectors.universal_collector import (
-    get_collector, UniversalCollector, CollectorMode
-)
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile  # type: ignore
+from pydantic import BaseModel  # type: ignore
+
+from .universal_collector import CollectorMode, get_collector  # type: ignore
 
 logger = logging.getLogger("cloudguard.routes")
 router = APIRouter(prefix="/api/collector", tags=["Universal Collector"])
+
+
+JsonObject = Dict[str, Any]
+
+
+def _paginate(items: List[JsonObject], start: int, end: int) -> List[JsonObject]:
+    # Use explicit slicing to satisfy strict linter checks
+    res: List[JsonObject] = items[start:end]  # type: ignore
+    return res
+
+
+def _tail(items: List[JsonObject], count: int) -> List[JsonObject]:
+    # Use explicit slicing to satisfy strict linter checks
+    res: List[JsonObject] = items[-count:]  # type: ignore
+    return res
 
 
 class LiveConnectRequest(BaseModel):
@@ -58,12 +72,14 @@ async def get_resources(
     if risk_level:
         resources = [r for r in resources if r.get("risk_level") == risk_level.upper()]
 
-    start = (page - 1) * limit
+    start = int((page - 1) * limit)
+    end = int(start + limit)
+    res_list = list(resources)
     return {
-        "total": len(resources),
+        "total": len(res_list),
         "page": page,
         "limit": limit,
-        "resources": resources[start:start + limit],
+        "resources": _paginate(res_list, start, end),
     }
 
 
@@ -72,8 +88,9 @@ async def get_metrics(resource_id: str):
     """Metric snapshots for one resource (last 24h)."""
     output = get_collector().collect()
     metrics = [m for m in output.metrics if m.get("resource_id") == resource_id]
+    met_list = list(metrics)
     # Return last 168 points (7 days hourly)
-    return {"resource_id": resource_id, "metrics": metrics[-168:]}
+    return {"resource_id": resource_id, "metrics": _tail(met_list, 168)}
 
 
 @router.get("/billing")
@@ -90,7 +107,8 @@ async def get_api_logs(suspicious_only: bool = False):
     logs = output.api_logs
     if suspicious_only:
         logs = [l for l in logs if l.get("is_suspicious")]
-    return {"total": len(logs), "logs": logs[:500]}
+    log_list = list(logs)
+    return {"total": len(log_list), "logs": _paginate(log_list, 0, 500)}
 
 
 @router.get("/orphaned")
@@ -108,12 +126,13 @@ async def get_summary():
 @router.post("/upload-csv")
 async def upload_csv(file: UploadFile = File(...)):
     """Accept CSV upload, switch to CSV mode, return CollectorOutput."""
-    if not file.filename.endswith(".csv"):
+    filename = file.filename or ""
+    if not filename.endswith(".csv"):
         raise HTTPException(400, "Only .csv files accepted")
 
     # Save uploaded file to temp directory
     content = await file.read()
-    tmp = os.path.join(tempfile.gettempdir(), f"cloudguard_{file.filename}")
+    tmp = os.path.join(tempfile.gettempdir(), f"cloudguard_{filename}")
     with open(tmp, "wb") as f:
         f.write(content)
 

@@ -27,17 +27,38 @@ async function startServer() {
     startSimulator();
   }
 
+  // Utility: safely run an async function, logging errors instead of creating unhandled rejections
+  function safeAsync(fn: () => Promise<void>, label: string) {
+    return () => {
+      fn().catch(err => console.error(`[CloudGuard] ${label} failed:`, err));
+    };
+  }
+
+  // Utility: prevent overlapping executions of an async function
+  function nonOverlapping(fn: () => Promise<void>, label: string) {
+    let running = false;
+    return () => {
+      if (running) { console.log(`[CloudGuard] ${label} still running, skipping`); return; }
+      running = true;
+      fn()
+        .catch(err => console.error(`[CloudGuard] ${label} failed:`, err))
+        .finally(() => { running = false; });
+    };
+  }
+
   // Detection pipeline: run after data loads
   setTimeout(runDetection, 5000);
   setInterval(runDetection, 60000);
 
-  // Optimization Agent: generate AI recommendations
-  setTimeout(generateRecommendations, 10000);
-  setInterval(generateRecommendations, 120000);
+  // Optimization Agent: generate AI recommendations (async, with overlap guard)
+  const safeGenerateRecs = nonOverlapping(generateRecommendations, "Optimization Agent");
+  setTimeout(safeGenerateRecs, 10000);
+  setInterval(safeGenerateRecs, 120000);
 
   // Preventive Cost Guard: predict future waste
-  setTimeout(() => runPreventiveGuard(), 15000);
-  setInterval(() => runPreventiveGuard(), 180000);
+  const safePreventive = safeAsync(async () => { runPreventiveGuard(); }, "Preventive Guard");
+  setTimeout(safePreventive, 15000);
+  setInterval(safePreventive, 180000);
 
   // API Routes
   app.use("/api", apiRoutes);

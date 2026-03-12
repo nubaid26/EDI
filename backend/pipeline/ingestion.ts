@@ -29,6 +29,23 @@ export function ingestMetrics(
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(resourceId, cpu, gpu, mem, disk, netIn, netOut, cost);
 
+  // Mirror hourly cost into billing so the dashboard works in simulator mode too.
+  const resource = db.prepare(`
+    SELECT service FROM resources WHERE id = ?
+  `).get(resourceId) as { service?: string } | undefined;
+
+  db.prepare(`
+    INSERT INTO billing (resource_id, service, cost_per_hour, total_cost, data_transfer_gb, storage_gb)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    resourceId,
+    resource?.service || "Unknown",
+    cost,
+    cost,
+    Math.round(((netOut + netIn) / 1024) * 100) / 100,
+    0,
+  );
+
   // Stage 3: Feature Engineering — compute derived features
   const history = db.prepare(`
     SELECT cpu_utilization, gpu_utilization, memory_usage, network_out, cost_per_hour
@@ -60,7 +77,18 @@ export function ingestMetrics(
     INSERT INTO features (resource_id, idle_ratio, cost_per_cpu_hour, network_spike_ratio, cost_growth_rate, runtime_hours, gpu_utilization_ratio)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(resourceId, idleRatio, costPerCpuHour, networkSpikeRatio, costGrowthRate, runtimeHours, gpuUtilizationRatio);
+
+  // Periodic cleanup: purge old rows to prevent unbounded DB growth
+  cleanupCounter++;
+  if (cleanupCounter >= 50) {
+    cleanupCounter = 0;
+    db.prepare("DELETE FROM metrics WHERE timestamp < datetime('now', '-2 hours')").run();
+    db.prepare("DELETE FROM billing WHERE timestamp < datetime('now', '-2 hours')").run();
+    db.prepare("DELETE FROM features WHERE timestamp < datetime('now', '-2 hours')").run();
+  }
 }
+
+let cleanupCounter = 0;
 
 function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, isNaN(v) ? min : v));

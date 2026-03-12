@@ -57,6 +57,18 @@ const CollectorContext = createContext<CollectorContextType>({
 
 export function useCollector() { return useContext(CollectorContext); }
 
+function toUiAnomalyType(type?: string | null): string {
+  switch ((type || "").toLowerCase()) {
+    case "cost anomaly": return "cost_spike";
+    case "idle resource": return "idle_gpu";
+    case "resource abuse": return "cryptomining";
+    case "infrastructure behavior": return "abnormal_egress";
+    case "gpu idle": return "idle_gpu";
+    case "orphaned resource": return "orphaned_resource";
+    default: return (type || "normal").toLowerCase().replace(/\s+/g, "_");
+  }
+}
+
 export function CollectorProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<CollectorMode>("synthetic");
   const [loading, setLoading] = useState(true);
@@ -89,9 +101,11 @@ export function CollectorProvider({ children }: { children: ReactNode }) {
         medium_risk_count: 0,
         low_risk_count: 0,
         providers_active: (stats.providerBreakdown || []).length,
-        anomaly_breakdown: Object.fromEntries(
-          (stats.anomalyTypeDistribution || []).map((a: any) => [a.type, a.count])
-        ),
+        anomaly_breakdown: (stats.anomalyTypeDistribution || []).reduce((acc: any, a: any) => {
+          const uiType = toUiAnomalyType(a.type);
+          acc[uiType] = (acc[uiType] || 0) + a.count;
+          return acc;
+        }, {} as Record<string, number>),
         savings_potential: stats.totalSavings || 0,
       });
       setResourceCount(stats.totalResources || 0);

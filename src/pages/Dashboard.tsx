@@ -42,8 +42,8 @@ export function Dashboard() {
   useEffect(() => { fetchDashboard(); const i = setInterval(fetchDashboard, 15000); return () => clearInterval(i); }, [fetchDashboard]);
 
   const providers = stats.providerBreakdown || [];
-  const anomalyDist = stats.anomalyTypeDistribution || [];
-  const waste = stats.totalWaste || 0;
+  const anomalyDist = Object.entries(summary?.anomaly_breakdown || {}).map(([type, count]) => ({ type, count }));
+  const waste = summary?.estimated_waste_30d || stats.totalWaste || 0;
   const savings = summary?.savings_potential || stats.totalSavings || 0;
 
   // ── Stat Cards ────────────────────────────────────────────────────────────

@@ -6,13 +6,31 @@ Supports three modes: SYNTHETIC, CSV, and LIVE.
 Produces a unified CollectorOutput regardless of source.
 """
 
-import os, csv, math, logging, traceback
-from dataclasses import dataclass, field, asdict
+import os, csv, logging, traceback
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast, Union
+import dataclasses
 
 logger = logging.getLogger("cloudguard.collector")
+
+
+def dataclass_to_dict(obj: Any) -> Dict[str, Any]:
+    """Convert a dataclass instance to a plain dict.
+
+    This avoids relying on ``dataclasses.asdict``'s narrower type hints,
+    which can confuse strict type checkers, while preserving runtime behavior.
+    """
+    if not dataclasses.is_dataclass(obj):
+        raise TypeError("dataclass_to_dict expects a dataclass instance")
+    return dict(vars(obj))
+
+
+def round_float(value: float, ndigits: int) -> float:
+    """Deterministic float rounding helper compatible with strict type checkers."""
+    factor = 10 ** ndigits
+    return float(int(value * factor + 0.5) / factor)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DATA CONTRACTS
@@ -174,12 +192,13 @@ def _normalize(value: float, max_val: float = 100.0) -> float:
 def compute_risk_score(cpu_avg: float, net_out_avg: float,
                        anomaly_type: str, cost_per_hour: float) -> float:
     """Signal Fusion formula: 0.4×CPU + 0.3×NetOut + 0.2×Anomaly + 0.1×Cost."""
-    return round((
+    val = float(
         0.40 * _normalize(cpu_avg, 100.0)
         + 0.30 * _normalize(net_out_avg, 100.0)
         + 0.20 * ANOMALY_WEIGHTS.get(anomaly_type, 0.0)
         + 0.10 * _normalize(cost_per_hour, 5.0)
-    ) * 100, 1)
+    ) * 100
+    return float(int(val * 10 + 0.5) / 10.0)
 
 
 def risk_level(score: float) -> str:
@@ -199,8 +218,8 @@ class UniversalCollector:
     single CollectorOutput contract. Downstream pipeline is source-agnostic.
     """
 
-    def __init__(self, mode: CollectorMode = None,
-                 fallback_chain: List[CollectorMode] = None):
+    def __init__(self, mode: Optional[CollectorMode] = None,
+                 fallback_chain: Optional[List[CollectorMode]] = None):
         self.mode = mode or self._detect_mode()
         self.fallback_chain = fallback_chain or [
             CollectorMode.CSV, CollectorMode.SYNTHETIC
@@ -245,10 +264,12 @@ class UniversalCollector:
 
     def collect(self) -> CollectorOutput:
         """Execute collection with fallback chain on failure."""
-        if self._cached_output and self._cache_time:
-            age = (datetime.utcnow() - self._cache_time).total_seconds()
+        cached = self._cached_output
+        cache_time = self._cache_time
+        if cached is not None and cache_time is not None:
+            age = (datetime.utcnow() - cache_time).total_seconds()
             if age < self._cache_ttl:
-                return self._cached_output
+                return cached
 
         modes_to_try = [self.mode] + [
             m for m in self.fallback_chain if m != self.mode
@@ -258,7 +279,7 @@ class UniversalCollector:
             try:
                 logger.info(f"Attempting collection in {mode.value} mode...")
                 output = self._collect_mode(mode)
-                output.mode = mode.value
+                output.mode = mode.value # type: ignore
                 output.generated_at = datetime.utcnow().isoformat()
                 self._cached_output = output
                 self._cache_time = datetime.utcnow()
@@ -328,7 +349,7 @@ class UniversalCollector:
             mem_sums[rid][0] += mem_val; mem_sums[rid][1] += 1
             net_sums[rid][0] += net_val; net_sums[rid][1] += 1
 
-        def avg(d, k): return round(d[k][0] / max(d[k][1], 1), 2)
+        def avg(d, k): return round_float(d[k][0] / max(int(d[k][1]), 1), 2)
 
         # ── Resources ───────────────────────────────────────────────────────
         resources = []
@@ -342,21 +363,21 @@ class UniversalCollector:
             cpu_a = avg(cpu_sums, rid)
             gpu_a = avg(gpu_sums, rid)
             net_a = avg(net_sums, rid)
-            hrs = max(1, (datetime.utcnow() - inst.launch_time).total_seconds() / 3600)
-            total_cost = round(inst.cost_per_hour * hrs, 2)
-            waste = round(total_cost * ANOMALY_WEIGHTS.get(atype, 0), 2) if atype != "normal" else 0
+            hrs = max(1.0, (datetime.utcnow() - inst.launch_time).total_seconds() / 3600)
+            total_cost = round_float(inst.cost_per_hour * hrs, 2)
+            waste = round_float(total_cost * ANOMALY_WEIGHTS.get(atype, 0), 2) if atype != "normal" else 0
             total_waste += waste
             score = compute_risk_score(cpu_a, net_a, atype, inst.cost_per_hour)
             rlevel = risk_level(score)
             anomaly_breakdown[atype] = anomaly_breakdown.get(atype, 0) + 1
 
-            resources.append(asdict(NormalizedResource(
+            resources.append(dataclass_to_dict(NormalizedResource(
                 resource_id=rid, instance_type=inst.instance_type,
                 region=inst.region, provider=inst.provider,
                 owner=inst.owner, anomaly_type=atype,
                 risk_score=score, risk_level=rlevel,
                 cost_per_hour=inst.cost_per_hour,
-                hours_running=round(hrs, 1), total_cost=total_cost,
+                hours_running=round_float(hrs, 1), total_cost=total_cost,
                 estimated_waste=waste,
                 cpu_avg_24h=cpu_a, gpu_avg_24h=gpu_a,
                 memory_avg_24h=avg(mem_sums, rid),
@@ -370,21 +391,21 @@ class UniversalCollector:
                 orphaned_summary.unattached_volumes.append({
                     "volume_id": rid, "size_gb": inst.volume_gb,
                     "age_days": int(hrs / 24),
-                    "monthly_cost": round(inst.cost_per_hour * 730, 2),
+                    "monthly_cost": round_float(inst.cost_per_hour * 730, 2),
                 })
             elif atype == "zombie_load_balancer":
                 orphaned_summary.zombie_load_balancers.append({
                     "lb_id": rid,
-                    "monthly_cost": round(inst.cost_per_hour * 730, 2),
+                    "monthly_cost": round_float(inst.cost_per_hour * 730, 2),
                 })
             elif atype == "orphaned_snapshot":
                 orphaned_summary.old_snapshots.append({
                     "snapshot_id": rid, "age_days": int(hrs / 24),
                     "size_gb": inst.volume_gb,
-                    "monthly_cost": round(inst.cost_per_hour * 730, 2),
+                    "monthly_cost": round_float(inst.cost_per_hour * 730, 2),
                 })
 
-        orphaned_summary.total_orphaned_monthly_waste = round(sum(
+        orphaned_summary.total_orphaned_monthly_waste = round_float(sum(
             v.get("monthly_cost", 0) for v in
             orphaned_summary.unattached_volumes +
             orphaned_summary.zombie_load_balancers +
@@ -399,14 +420,14 @@ class UniversalCollector:
             m = raw_metrics[i]
             cpu_v = m.cpu_usage if isinstance(m.cpu_usage, (int, float)) and 0 <= m.cpu_usage <= 100 else None
             if cpu_v is None: continue
-            metrics.append(asdict(MetricSnapshot(
+            metrics.append(dataclass_to_dict(MetricSnapshot(
                 timestamp=m.timestamp, resource_id=m.resource_id,
-                cpu_usage=round(cpu_v, 2),
-                gpu_usage=round(m.gpu_usage if isinstance(m.gpu_usage, (int, float)) else 0, 2),
-                memory_usage=round(m.memory_usage if isinstance(m.memory_usage, (int, float)) else 0, 2),
-                disk_io=round(m.disk_io if isinstance(m.disk_io, (int, float)) else 0, 1),
-                network_in=round(m.network_in if isinstance(m.network_in, (int, float)) else 0, 3),
-                network_out=round(m.network_out if isinstance(m.network_out, (int, float)) else 0, 3),
+                cpu_usage=round_float(cpu_v, 2),
+                gpu_usage=round_float(m.gpu_usage if isinstance(m.gpu_usage, (int, float)) else 0, 2),
+                memory_usage=round_float(m.memory_usage if isinstance(m.memory_usage, (int, float)) else 0, 2),
+                disk_io=round_float(m.disk_io if isinstance(m.disk_io, (int, float)) else 0, 1),
+                network_in=round_float(m.network_in if isinstance(m.network_in, (int, float)) else 0, 3),
+                network_out=round_float(m.network_out if isinstance(m.network_out, (int, float)) else 0, 3),
             )))
 
         # ── Billing ─────────────────────────────────────────────────────────
@@ -416,13 +437,13 @@ class UniversalCollector:
             b = raw_billing[i]
             cph = b.cost_per_hour if isinstance(b.cost_per_hour, (int, float)) and b.cost_per_hour >= 0 else None
             if cph is None: continue
-            billing.append(asdict(BillingRecord(
+            billing.append(dataclass_to_dict(BillingRecord(
                 date=b.timestamp, resource_id=b.resource_id,
                 service=b.service, provider="",
-                cost_per_hour=round(cph, 6),
-                daily_cost=round(cph * 24, 4),
-                cumulative_cost=round(b.total_cost if isinstance(b.total_cost, (int, float)) else 0, 4),
-                data_transfer_gb=round(b.data_transfer_gb if isinstance(b.data_transfer_gb, (int, float)) else 0, 4),
+                cost_per_hour=round_float(cph, 6),
+                daily_cost=round_float(cph * 24, 4),
+                cumulative_cost=round_float(b.total_cost if isinstance(b.total_cost, (int, float)) else 0, 4),
+                data_transfer_gb=round_float(b.data_transfer_gb if isinstance(b.data_transfer_gb, (int, float)) else 0, 4),
                 storage_gb=b.storage_gb if isinstance(b.storage_gb, (int, float)) else 0,
             )))
 
@@ -433,7 +454,7 @@ class UniversalCollector:
             l = raw_logs[i]
             is_sus = (l.status == "Failed" or l.action in ("create_access_key", "assume_role")
                       or l.source_ip.startswith("185.") or l.region in ("ap-east-1", "af-south-1"))
-            api_logs.append(asdict(APILogRecord(
+            api_logs.append(dataclass_to_dict(APILogRecord(
                 timestamp=l.timestamp, user_id=l.user_id,
                 action=l.action, resource_id=l.resource_id,
                 region=l.region, status=l.status,
@@ -443,24 +464,31 @@ class UniversalCollector:
 
         # ── Summary ─────────────────────────────────────────────────────────
         providers = set(r["provider"] for r in resources)
-        total_cost_30d = sum(r["total_cost"] for r in resources)
+        total_cost_30d_raw = sum(r["total_cost"] for r in resources)
+        total_cost_30d: float = float(total_cost_30d_raw)
         high_c = sum(1 for r in resources if r["risk_level"] == "HIGH")
         med_c = sum(1 for r in resources if r["risk_level"] == "MEDIUM")
         low_c = sum(1 for r in resources if r["risk_level"] == "LOW")
         anom_c = sum(1 for r in resources if r["anomaly_type"] != "normal")
 
-        summary = asdict(CollectorSummary(
-            total_resources=len(resources), total_cost_30d=round(total_cost_30d, 2),
-            estimated_waste_30d=round(total_waste, 2),
-            waste_percentage=round(total_waste / max(total_cost_30d, 1) * 100, 1),
+        if total_cost_30d <= 0.0:
+            waste_pct = 0.0
+        else:
+            waste_pct = (float(total_waste) / total_cost_30d) * 100.0
+        waste_pct = round_float(waste_pct, 1)
+
+        summary = dataclass_to_dict(CollectorSummary(
+            total_resources=len(resources), total_cost_30d=round_float(total_cost_30d, 2),
+            estimated_waste_30d=round_float(float(total_waste), 2),
+            waste_percentage=waste_pct,
             anomalies_detected=anom_c,
             high_risk_count=high_c, medium_risk_count=med_c, low_risk_count=low_c,
             providers_active=len(providers),
             anomaly_breakdown=anomaly_breakdown,
-            savings_potential=round(total_waste * 0.85, 2),
+            savings_potential=round_float(total_waste * 0.85, 2),
         ))
 
-        dq = asdict(DataQualityReport(
+        dq = dataclass_to_dict(DataQualityReport(
             total_rows_ingested=meta.get("metric_rows", 0),
             dirty_rows_found=int(meta.get("metric_rows", 0) * 0.05),
             null_fields_patched=int(meta.get("metric_rows", 0) * 0.02),
@@ -470,7 +498,7 @@ class UniversalCollector:
 
         return CollectorOutput(
             resources=resources, metrics=metrics, billing=billing,
-            api_logs=api_logs, orphaned=asdict(orphaned_summary),
+            api_logs=api_logs, orphaned=dataclass_to_dict(orphaned_summary),
             summary=summary, data_quality=dq,
         )
 
@@ -493,14 +521,15 @@ class UniversalCollector:
         # Build resources from metrics CSV
         from collections import defaultdict
         by_resource = defaultdict(list)
-        dirty = 0
         for r in rows:
             rid = r.get("resource_id", r.get("instance_id", ""))
             if not rid:
-                dirty += 1; continue
+                continue
             by_resource[rid].append(r)
 
-        dq.dirty_rows_found = dirty
+        # Rows that didn't map to a resource ID are considered "dirty"
+        valid_rows_count = sum(len(v) for v in by_resource.values())
+        dq.dirty_rows_found = len(rows) - valid_rows_count
 
         resources = []
         metrics_out = []
@@ -514,18 +543,21 @@ class UniversalCollector:
             atype = mrows[0].get("anomaly_type", "normal")
             score = compute_risk_score(cpu_avg, net_avg, atype, cost)
 
-            resources.append(asdict(NormalizedResource(
+            resources.append(dataclass_to_dict(NormalizedResource(
                 resource_id=rid,
                 instance_type=mrows[0].get("instance_type", "unknown"),
                 region=mrows[0].get("region", "us-east-1"),
                 provider=provider, owner=mrows[0].get("owner", mrows[0].get("owner_tag", "unknown")),
                 anomaly_type=atype, risk_score=score, risk_level=risk_level(score),
                 cost_per_hour=cost, hours_running=len(mrows),
-                total_cost=round(cost * len(mrows), 2),
-                estimated_waste=round(cost * len(mrows) * ANOMALY_WEIGHTS.get(atype, 0), 2),
-                cpu_avg_24h=round(cpu_avg, 2), gpu_avg_24h=0,
-                memory_avg_24h=round(sum(float(m.get("memory_usage", 0) or 0) for m in mrows) / max(len(mrows), 1), 2),
-                network_out_avg_24h=round(net_avg, 2),
+                total_cost=round_float(cost * len(mrows), 2),
+                estimated_waste=round_float(cost * len(mrows) * ANOMALY_WEIGHTS.get(atype, 0), 2),
+                cpu_avg_24h=round_float(cpu_avg, 2), gpu_avg_24h=0,
+                memory_avg_24h=round_float(
+                    sum(float(m.get("memory_usage", 0) or 0) for m in mrows) / max(len(mrows), 1),
+                    2,
+                ),
+                network_out_avg_24h=round_float(net_avg, 2),
                 recommendation=ANOMALY_RECOMMENDATIONS.get(atype, "Review resource"),
             )))
 
@@ -533,7 +565,7 @@ class UniversalCollector:
             step = max(1, len(mrows) // 168)
             for i in range(0, len(mrows), step):
                 m = mrows[i]
-                metrics_out.append(asdict(MetricSnapshot(
+                metrics_out.append(dataclass_to_dict(MetricSnapshot(
                     timestamp=m.get("timestamp", ""),
                     resource_id=rid,
                     cpu_usage=float(m.get("cpu_usage", m.get("cpu_utilization", 0)) or 0),
@@ -548,8 +580,10 @@ class UniversalCollector:
         billing_out = []
         if "billing" in self._csv_paths:
             bill_rows = self._parse_csv(self._csv_paths["billing"])
-            for b in bill_rows[:5000]:
-                billing_out.append(asdict(BillingRecord(
+            for idx, b in enumerate(bill_rows):
+                if idx >= 5000:
+                    break
+                billing_out.append(dataclass_to_dict(BillingRecord(
                     date=b.get("timestamp", ""), resource_id=b.get("resource_id", ""),
                     service=b.get("service", "Compute"),
                     provider=b.get("provider", ""), cost_per_hour=float(b.get("cost_per_hour", 0) or 0),
@@ -563,9 +597,11 @@ class UniversalCollector:
         api_logs_out = []
         if "api_logs" in self._csv_paths:
             log_rows = self._parse_csv(self._csv_paths["api_logs"])
-            for l in log_rows[:5000]:
+            for idx, l in enumerate(log_rows):
+                if idx >= 5000:
+                    break
                 is_sus = l.get("status") == "Failed" or l.get("source_ip", "").startswith("185.")
-                api_logs_out.append(asdict(APILogRecord(
+                api_logs_out.append(dataclass_to_dict(APILogRecord(
                     timestamp=l.get("timestamp", ""), user_id=l.get("user_id", ""),
                     action=l.get("action", ""), resource_id=l.get("resource_id", ""),
                     region=l.get("region", ""), status=l.get("status", "Success"),
@@ -573,27 +609,39 @@ class UniversalCollector:
                     is_suspicious=is_sus,
                 )))
 
-        dq.coverage_completeness_pct = min(100, len(resources) / max(len(by_resource), 1) * 100)
-        total_cost = sum(r["total_cost"] for r in resources)
-        total_waste = sum(r["estimated_waste"] for r in resources)
+        coverage_ratio: float = 0.0
+        if by_resource:
+            coverage_ratio = float(len(resources)) / float(max(len(by_resource), 1))
+        dq.coverage_completeness_pct = min(100.0, coverage_ratio * 100.0)
 
-        summary = asdict(CollectorSummary(
-            total_resources=len(resources), total_cost_30d=round(total_cost, 2),
-            estimated_waste_30d=round(total_waste, 2),
-            waste_percentage=round(total_waste / max(total_cost, 1) * 100, 1),
+        total_cost_raw = sum(r["total_cost"] for r in resources)
+        total_cost: float = float(total_cost_raw)
+        total_waste_raw = sum(r["estimated_waste"] for r in resources)
+        total_waste: float = float(total_waste_raw)
+
+        if total_cost <= 0.0:
+            waste_pct = 0.0
+        else:
+            waste_pct = (total_waste / total_cost) * 100.0
+        waste_pct = round_float(waste_pct, 1)
+
+        summary = dataclass_to_dict(CollectorSummary(
+            total_resources=len(resources), total_cost_30d=round_float(total_cost, 2),
+            estimated_waste_30d=round_float(total_waste, 2),
+            waste_percentage=waste_pct,
             anomalies_detected=sum(1 for r in resources if r["anomaly_type"] != "normal"),
             high_risk_count=sum(1 for r in resources if r["risk_level"] == "HIGH"),
             medium_risk_count=sum(1 for r in resources if r["risk_level"] == "MEDIUM"),
             low_risk_count=sum(1 for r in resources if r["risk_level"] == "LOW"),
             providers_active=len(set(r["provider"] for r in resources)),
-            anomaly_breakdown={}, savings_potential=round(total_waste * 0.85, 2),
+            anomaly_breakdown={}, savings_potential=round_float(total_waste * 0.85, 2),
         ))
 
         return CollectorOutput(
             resources=resources, metrics=metrics_out,
             billing=billing_out, api_logs=api_logs_out,
-            orphaned=asdict(OrphanedResourceSummary()),
-            summary=summary, data_quality=asdict(dq),
+            orphaned=dataclass_to_dict(OrphanedResourceSummary()),
+            summary=summary, data_quality=dataclass_to_dict(dq),
         )
 
     def _parse_csv(self, path: str, max_rows: int = 100000) -> List[Dict]:
@@ -615,7 +663,7 @@ class UniversalCollector:
         if not role_arn:
             raise ValueError("No AWS_READONLY_ROLE_ARN configured for LIVE mode")
 
-        import boto3
+        import boto3  # pyre-ignore[21]
         session = self._assume_role(role_arn, external_id)
         ec2 = session.client("ec2")
         cw = session.client("cloudwatch")
@@ -634,7 +682,7 @@ class UniversalCollector:
                 end = datetime.utcnow()
                 start = end - timedelta(hours=24)
                 try:
-                    resp = cw.get_metric_data(
+                    resp = cw.get_metric_data(  # pyre-ignore
                         MetricDataQueries=[{
                             "Id": "cpu", "MetricStat": {
                                 "Metric": {"Namespace": "AWS/EC2", "MetricName": "CPUUtilization",
@@ -649,32 +697,33 @@ class UniversalCollector:
                 except Exception:
                     cpu_avg = 0.0
 
-                from models import INSTANCE_COSTS
+                # Fallback costs if models.INSTANCE_COSTS is missing
+                INSTANCE_COSTS = {"t3.micro": 0.0104, "t3.small": 0.0208, "t3.medium": 0.0416, "m5.large": 0.096}
                 cost = INSTANCE_COSTS.get(itype, 0.096)
                 score = compute_risk_score(cpu_avg, 0, "normal", cost)
 
-                resources.append(asdict(NormalizedResource(
+                resources.append(dataclass_to_dict(NormalizedResource(
                     resource_id=rid, instance_type=itype,
                     region=region, provider="aws",
                     owner=tags.get("Owner", "unknown"),
                     anomaly_type="normal", risk_score=score,
                     risk_level=risk_level(score),
                     cost_per_hour=cost,
-                    hours_running=24, total_cost=round(cost * 24, 2),
-                    cpu_avg_24h=round(cpu_avg, 2),
+                    hours_running=24, total_cost=round_float(cost * 24, 2),
+                    cpu_avg_24h=round_float(cpu_avg, 2),
                     recommendation="Monitor resource",
                     tags=tags,
                 )))
 
         total_cost = sum(r["total_cost"] for r in resources)
-        summary = asdict(CollectorSummary(
-            total_resources=len(resources), total_cost_30d=round(total_cost * 30, 2),
+        summary = dataclass_to_dict(CollectorSummary(
+            total_resources=len(resources), total_cost_30d=round_float(total_cost * 30, 2),
             providers_active=1,
         ))
 
         return CollectorOutput(
             resources=resources, summary=summary,
-            data_quality=asdict(DataQualityReport(
+            data_quality=dataclass_to_dict(DataQualityReport(
                 total_rows_ingested=len(resources),
                 schema_detected="aws_live",
                 coverage_completeness_pct=80.0,
@@ -683,7 +732,7 @@ class UniversalCollector:
 
     def _assume_role(self, role_arn: str, external_id: str):
         """Assume an IAM role via STS and return a boto3 session."""
-        import boto3
+        import boto3  # pyre-ignore[21]
         sts = boto3.client("sts")
         response = sts.assume_role(
             RoleArn=role_arn,
@@ -702,9 +751,9 @@ class UniversalCollector:
         """Return a valid but empty CollectorOutput."""
         return CollectorOutput(
             mode="synthetic", generated_at=datetime.utcnow().isoformat(),
-            summary=asdict(CollectorSummary()),
-            data_quality=asdict(DataQualityReport()),
-            orphaned=asdict(OrphanedResourceSummary()),
+            summary=dataclass_to_dict(CollectorSummary()),
+            data_quality=dataclass_to_dict(DataQualityReport()),
+            orphaned=dataclass_to_dict(OrphanedResourceSummary()),
         )
 
 

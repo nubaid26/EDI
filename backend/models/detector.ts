@@ -98,7 +98,7 @@ export function runDetection() {
 
       // --- Model 4: Infrastructure Behavior ---
       if (avgNetOut > 500 && res.owner_tag === "Unknown" && !hasRecentAnomaly(res.id, "Infrastructure Behavior")) {
-        const score = 65 + Math.random() * 15;
+        const score = Math.min(80, 65 + (avgNetOut / 500) * 15);
         const rca = analyzeRootCause(res.id, "Infrastructure Behavior", score);
         const attr = attributeCost(res.id, "Infrastructure Behavior");
 

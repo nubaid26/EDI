@@ -1,21 +1,17 @@
 import { useEffect, useState } from "react";
 import { ShieldAlert, ShieldCheck, AlertOctagon, Eye } from "lucide-react";
 
+import { useCollector } from "../context/CollectorContext";
+
 export function Security() {
-  const [threats, setThreats] = useState<any[]>([]);
+  const { resources } = useCollector();
   const [selectedThreat, setSelectedThreat] = useState<any>(null);
 
-  useEffect(() => {
-    const load = () => fetch("/api/anomalies").then(r => r.json()).then(data =>
-      setThreats(data.filter((a: any) => a.type === "Resource Abuse" || a.type === "Infrastructure Behavior"))
-    );
-    load();
-    const iv = setInterval(load, 10000);
-    return () => clearInterval(iv);
-  }, []);
-
-  const abuseThreats = threats.filter(t => t.type === "Resource Abuse");
-  const infraThreats = threats.filter(t => t.type === "Infrastructure Behavior");
+  const threats = resources.filter((a: any) => 
+    a.anomaly_type === "cryptomining" || a.anomaly_type === "abnormal_egress"
+  );
+  const abuseThreats = threats.filter(t => t.anomaly_type === "cryptomining");
+  const infraThreats = threats.filter(t => t.anomaly_type === "abnormal_egress");
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
@@ -47,10 +43,10 @@ export function Security() {
           try { rootCause = threat.root_cause ? JSON.parse(threat.root_cause) : null; } catch { }
 
           return (
-            <div key={threat.id} className="glass-card p-5 animate-in relative overflow-hidden" style={{ borderLeft: `3px solid ${threat.type === "Resource Abuse" ? "#f43f5e" : "#f59e0b"}` }}>
+            <div key={threat.resource_id} className="glass-card p-5 animate-in relative overflow-hidden" style={{ borderLeft: `3px solid ${threat.anomaly_type === "cryptomining" ? "#f43f5e" : "#f59e0b"}` }}>
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 rounded-xl" style={{ background: threat.type === "Resource Abuse" ? "rgba(244,63,94,0.12)" : "rgba(245,158,11,0.12)" }}>
-                  <AlertOctagon className="w-5 h-5" style={{ color: threat.type === "Resource Abuse" ? "#fb7185" : "#fbbf24" }} />
+                <div className="p-2.5 rounded-xl" style={{ background: threat.anomaly_type === "cryptomining" ? "rgba(244,63,94,0.12)" : "rgba(245,158,11,0.12)" }}>
+                  <AlertOctagon className="w-5 h-5" style={{ color: threat.anomaly_type === "cryptomining" ? "#fb7185" : "#fbbf24" }} />
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{threat.resource_name}</h3>
@@ -61,7 +57,7 @@ export function Security() {
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span style={{ color: "var(--text-muted)" }}>Threat Type</span>
-                  <span className={`badge ${threat.type === "Resource Abuse" ? "badge-critical" : "badge-high"}`}>{threat.type}</span>
+                  <span className={`badge ${threat.anomaly_type === "cryptomining" ? "badge-critical" : "badge-high"}`}>{threat.anomaly_type}</span>
                 </div>
                 <div className="flex justify-between">
                   <span style={{ color: "var(--text-muted)" }}>Risk Score</span>
@@ -73,11 +69,11 @@ export function Security() {
                 </div>
                 <div className="flex justify-between">
                   <span style={{ color: "var(--text-muted)" }}>Detected</span>
-                  <span style={{ color: "var(--text-secondary)" }}>{new Date(threat.timestamp).toLocaleString()}</span>
+                  <span style={{ color: "var(--text-secondary)" }}>{threat.hours_running} hours ago</span>
                 </div>
               </div>
 
-              <p className="text-xs mt-3 mb-4" style={{ color: "var(--text-secondary)" }}>{threat.description}</p>
+              <p className="text-xs mt-3 mb-4" style={{ color: "var(--text-secondary)" }}>{threat.recommendation}</p>
 
               <div className="flex gap-2">
                 <button className="btn-danger flex-1 text-center text-xs" onClick={() => setSelectedThreat(threat)}>
@@ -90,10 +86,8 @@ export function Security() {
       </div>
 
       {threats.length === 0 && (
-        <div className="glass-card p-12 text-center">
-          <ShieldCheck className="w-12 h-12 mx-auto mb-4" style={{ color: "#34d399" }} />
-          <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>No Security Threats Detected</h3>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Your infrastructure is currently secure from known abuse patterns.</p>
+        <div className="text-center py-10" style={{ color: "var(--text-muted)" }}>
+          <p>No active threats detected at the moment.</p>
         </div>
       )}
 
@@ -108,12 +102,12 @@ export function Security() {
             <div className="space-y-3 text-sm">
               <div className="p-3 rounded-lg" style={{ background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.15)" }}>
                 <p className="font-semibold text-xs uppercase tracking-wider mb-1" style={{ color: "#fb7185" }}>Threat Summary</p>
-                <p style={{ color: "var(--text-secondary)" }}>{selectedThreat.description}</p>
+                <p style={{ color: "var(--text-secondary)" }}>{selectedThreat.recommendation}</p>
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="p-3 rounded-lg" style={{ background: "var(--bg-glass)" }}>
                   <span style={{ color: "var(--text-muted)" }}>Resource</span>
-                  <p className="font-medium mt-0.5" style={{ color: "var(--text-primary)" }}>{selectedThreat.resource_name}</p>
+                  <p className="font-medium mt-0.5" style={{ color: "var(--text-primary)" }}>{selectedThreat.resource_id}</p>
                 </div>
                 <div className="p-3 rounded-lg" style={{ background: "var(--bg-glass)" }}>
                   <span style={{ color: "var(--text-muted)" }}>Risk Score</span>
@@ -121,7 +115,7 @@ export function Security() {
                 </div>
                 <div className="p-3 rounded-lg" style={{ background: "var(--bg-glass)" }}>
                   <span style={{ color: "var(--text-muted)" }}>Owner</span>
-                  <p className="font-medium mt-0.5" style={{ color: "var(--text-primary)" }}>{selectedThreat.attributed_owner || "Unknown"}</p>
+                  <p className="font-medium mt-0.5" style={{ color: "var(--text-primary)" }}>{selectedThreat.owner || "Unknown"}</p>
                 </div>
                 <div className="p-3 rounded-lg" style={{ background: "var(--bg-glass)" }}>
                   <span style={{ color: "var(--text-muted)" }}>Service</span>

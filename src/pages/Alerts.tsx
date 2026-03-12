@@ -102,7 +102,7 @@ export function Alerts() {
                   <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{alert.message}</p>
                 </div>
                 <span className="text-sm font-bold shrink-0" style={{ color: "#f43f5e" }}>
-                  ${alert.estimated_waste || Math.round(Math.random() * 2000)}
+                  ${alert.estimated_waste || 0}
                 </span>
                 <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
                   {new Date(alert.timestamp).toLocaleDateString()}

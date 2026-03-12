@@ -36,16 +36,43 @@ export function loadV2Data() {
     console.log("[V2 Loader] All V2 datasets loaded successfully.");
 }
 
+/** Parse a single CSV line respecting quoted fields that may contain commas */
+function parseCSVLine(line: string): string[] {
+    const fields: string[] = [];
+    let current = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+            // Handle escaped quote ""
+            if (inQuotes && line[i + 1] === '"') {
+                current += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (ch === ',' && !inQuotes) {
+            fields.push(current.trim());
+            current = "";
+        } else {
+            current += ch;
+        }
+    }
+    fields.push(current.trim());
+    return fields;
+}
+
 function parseCSV(filePath: string): Record<string, string>[] {
     const content = fs.readFileSync(filePath, "utf-8");
     const lines = content.split("\n").filter(l => l.trim().length > 0);
     if (lines.length < 2) return [];
 
-    const headers = lines[0].split(",").map(h => h.trim());
+    const headers = parseCSVLine(lines[0]);
     const rows: Record<string, string>[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(",");
+        const values = parseCSVLine(lines[i]);
         const row: Record<string, string> = {};
         for (let j = 0; j < headers.length; j++) {
             row[headers[j]] = (values[j] || "").trim();
@@ -73,7 +100,7 @@ function loadInventory() {
 
             insert.run(
                 r.resource_id,
-                r.provider,
+                (r.provider || "unknown").toLowerCase(),
                 r.resource_type,
                 name,
                 r.region,

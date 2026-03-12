@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Zap, CheckCircle, TrendingUp, DollarSign } from "lucide-react";
+import { useCollector } from "../context/CollectorContext";
 
 export function Optimization() {
+  const { summary } = useCollector();
   const [recommendations, setRecommendations] = useState<any[]>([]);
 
   useEffect(() => {
@@ -14,7 +16,7 @@ export function Optimization() {
   };
 
   const totalSavings = recommendations.filter(r => r.status === "completed").reduce((a, r) => a + (r.estimated_savings || 0), 0);
-  const pendingSavings = recommendations.filter(r => r.status === "pending").reduce((a, r) => a + (r.estimated_savings || 0), 0);
+  const pendingSavings = summary?.savings_potential || recommendations.filter(r => r.status === "pending").reduce((a, r) => a + (r.estimated_savings || 0), 0);
   const pending = recommendations.filter(r => r.status === "pending");
   const completed = recommendations.filter(r => r.status === "completed");
 
