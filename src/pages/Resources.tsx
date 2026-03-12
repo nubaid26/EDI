@@ -23,8 +23,8 @@ export function Resources() {
     .filter(r => filter === "all" || r.provider === filter)
     .filter(r => search === "" || r.name?.toLowerCase().includes(search.toLowerCase()) || r.id?.toLowerCase().includes(search.toLowerCase()));
 
-  const providers = [...new Set(resources.map(r => r.provider))];
-  const orphaned = resources.filter(r => ["orphaned_resource", "orphaned_snapshot", "zombie_load_balancer"].includes(r.anomaly_type || ""));
+  const providers = [...new Set(resources.map((r: any) => r.provider as string))] as string[];
+  const orphaned = resources.filter((r: any) => ["orphaned_resource", "orphaned_snapshot", "zombie_load_balancer"].includes(r.anomaly_type || r.status || ""));
 
   const openDrawer = async (resource: any) => {
     setDrawer(resource);
@@ -46,9 +46,9 @@ export function Resources() {
         <button className={`filter-tab ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>
           All Providers ({resources.length})
         </button>
-        {providers.map(p => (
+        {providers.map((p: string) => (
           <button key={p} className={`filter-tab ${filter === p ? "active" : ""}`} onClick={() => setFilter(p)}>
-            {p?.toUpperCase()} ({resources.filter(r => r.provider === p).length})
+            {(p || "").toUpperCase()} ({resources.filter((r: any) => r.provider === p).length})
           </button>
         ))}
         <div className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-glass)" }}>

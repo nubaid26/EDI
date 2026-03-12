@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { useCollector, CollectorMode } from "../context/CollectorContext";
 import { Activity, Upload, Cloud, RefreshCw, AlertTriangle } from "lucide-react";
 
